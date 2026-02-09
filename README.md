@@ -3,8 +3,7 @@
 **WaymoQA** is a training-enabled, **multi-view (8-camera)** driving VQA dataset designed to evaluate and improve **safety-critical reasoning** for autonomous driving. It introduces a structured **two-stage safety-critical reasoning** formulation (Stage-1 immediate risk resolution + Stage-2 induced secondary risk mitigation) and provides **objective MCQ benchmarking** alongside training splits.
 
 > This repository is the **official** code + (annotations and/or media release per policy) for the paper:
-> **WaymoQA: A Multi-View Visual Question Answering Dataset for Safety-Critical Reasoning in Autonomous Driving** (KDD 2026, Dataset & Benchmark Track)
-
+> **WaymoQA: A Multi-View Visual Question Answering Dataset for Safety-Critical Reasoning in Autonomous Driving** 
 ---
 
 ## Table of Contents
