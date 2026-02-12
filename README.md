@@ -71,7 +71,12 @@ If you have any questions about the dataset, feel free to cantact me with `seung
 ## Citation
 If you find our paper and project useful, please consider citing:
 ```bibtex
-
+@article{yu2025waymoqa,
+  title={WaymoQA: A Multi-View Visual Question Answering Dataset for Safety-Critical Reasoning in Autonomous Driving},
+  author={Yu, Seungjun and Lee, Seonho and Kim, Namho and Shin, Jaeyo and Park, Junsung and Ryu, Wonjeong and Jung, Raehyuk and Shim, Hyunjung},
+  journal={arXiv preprint arXiv:2511.20022},
+  year={2025}
+}
 ```
 ---
 
