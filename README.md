@@ -76,9 +76,9 @@ To improve efficiency, we preprocess the dataset by exporting 8-camera images in
 
 ```bash
 # Example for Image QA
-python dataset/extract_for_imageqa.py \ 
+python dataset/extract_for_imageqa.py \
   --split train \
-  --target-jsonl ./dataset/question/train.jsonl \  
+  --target-jsonl ./dataset/question/train.jsonl \
   --output-dir ./dataset/train_imgs
 
 # Example for Video QA
