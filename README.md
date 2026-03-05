@@ -85,7 +85,8 @@ WaymoQA
 +-- dataset/
 |   +-- questions/				# downloaded
 |   |   +-- train.jsonl
-|   |   +-- validation.jsonl
+|   |   +-- validation_mcq.jsonl
+|   |   +-- validation_open_ended.jsonl
 |   |   +-- test.jsonl
 |   +-- waymoe2e/ 				# downloaded or extracted
 |   |   +-- train.tfrecord
