@@ -53,6 +53,11 @@
 
 **Using Third Party ([Fine-tuning Qwen-VL Series](https://github.com/2U1/Qwen-VL-Series-Finetune))**
 ```bash
+cd Qwen-VL-Series-Finetune
+conda env create -f environment.yaml
+conda activate train
+pip install qwen-vl-utils
+pip install flash-attn --no-build-isolation
 ```
 
 ### 1. Download Dataset
