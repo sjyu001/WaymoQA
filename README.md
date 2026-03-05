@@ -85,15 +85,23 @@ python dataset/extract_for_imageqa.py \
 python dataset/export_videoqa_mosaics.py \
   --split train \
   --target-jsonl ./dataset/question/train.jsonl \
-  --output-dir ./dataset/train_imgs
-
+  --output-dir ./dataset/train_imgs \
+  --gap 12 \
+  --tile-align center
 ```
-
 #### 2.2 Build LLaVA-style conversation JSON for Training
 For Qwen fine-tuning, we convert WaymoQA into a Qwen-compatible training format (e.g., LLaVA-style `conversations` with aligned multi-view image/video inputs).
 > If you plan to use the validation split for training, we recommend using ```validation_open_ended.jsonl``` rather than ```validation_mcq.jsonl```.
 > The MCQ version is intended for benchmarking/evaluation (fixed answer choices), while the open-ended version better matches training objectives and avoids overfitting to the provided options.
 
+```bash
+python dataset/build_llava_conversations.py \
+  --inputs ./dataset/question/train.jsonl \
+  --out ./dataset/llava_train.json \
+  --video-mosaic-dir ./dataset/train_imgs \
+  --video-stride 5 \ # Adjust based on your GPU memory
+  --video-max-frames -1
+```
 
 #### 2.3 Folder Structure
 The folder structure should be organized as follows before training.
@@ -138,3 +146,4 @@ If you find our paper and project useful, please consider citing:
   year={2025}
 }
 ```
+
