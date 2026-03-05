@@ -61,7 +61,7 @@ conda env create -f environment.yaml
 conda activate train
 pip install qwen-vl-utils
 pip install flash-attn --no-build-isolation
-pip install vllm
+pip install vllm pandas
 ```
 
 ### 1. Download Dataset
