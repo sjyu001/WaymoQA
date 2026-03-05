@@ -41,7 +41,7 @@
 ## ⌛ ToDo
 
 - [x] Release question & anwswer data
-- [x] Release traind and testing code
+- [ ] Release traind and testing code
 
 ---
 # 🛠️ Getting Started
