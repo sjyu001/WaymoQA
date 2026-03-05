@@ -43,15 +43,17 @@
 - [x] Release question & anwswer data
 - [x] Release traind and testing code
 
----
 # 🛠️ Getting Started
 ### 0. Installation
-**Environments**
-- Ubuntu 22.04
-- Nvidia-Driver 550.120
-- Cuda version 12.8
 
-**Using Third Party ([Fine-tuning Qwen-VL Series](https://github.com/2U1/Qwen-VL-Series-Finetune))**
+**Data Preprocessing Environment**
+```
+conda env create -f environment.yml
+conda activate data
+python -m pip install --no-cache-dir --no-deps waymo-open-dataset-tf-2-12-0==1.6.7
+```
+
+**Using Third Party for Training ([Fine-tuning Qwen-VL Series](https://github.com/2U1/Qwen-VL-Series-Finetune))**
 ```bash
 cd Qwen-VL-Series-Finetune
 conda env create -f environment.yaml
@@ -64,6 +66,43 @@ pip install flash-attn --no-build-isolation
 We have released our question-answer annotations, please download it from [HERE](https://drive.google.com/drive/folders/1RcB-RJU0Vh_Z70bkyJdU7M6tjnMu9559?usp=drive_link).
 
 For the visual data, you can download **Waymo E2E** data from [HERE](https://waymo.com/open/download/?_gl=1*12kiif9*_ga*MTE2MTc2NjUzMy4xNzcwNjIzMDc2*_up*MQ..*_ga_KDWQB0N19R*czE3NzA2MjMwNzYkbzEkZzAkdDE3NzA2MjMwNzYkajYwJGwwJGgw).
+
+### 2. Data Preprocessing
+Directly reading TFRecords on-the-fly during benchmarking/training can be very time-consuming due to repeated TFRecord scanning and image decoding.  
+To improve efficiency, we preprocess the dataset by exporting 8-camera images in advance and use these preprocessed files for faster benchmarking and training.
+
+```bash
+# for train set
+python dataset/export_waymo_8cams_from_jsonl.py \ 
+  --split train \
+  --target-jsonl ./dataset/question/validation.jsonl   
+  --output-dir ./dataset/validation_imgs
+```
+
+The folder structure should be organized as follows before training.
+```bash
+WaymoQA
++-- dataset/
+|   +-- questions/				# downloaded
+|   |   +-- train.jsonl
+|   |   +-- validation.jsonl
+|   |   +-- test.jsonl
+|   +-- waymoe2e/ 				# downloaded or extracted
+|   |   +-- train.tfrecord
+|   |   +-- validation.tfrecord
+|   |   +-- test.tfrecord
+|   |   +-- train_imgs/
+|   |   |   +-- xxx.jpg
+|   |   |   +-- ...
+|   |   +-- validation_imgs/
+|   |   |   +-- xxx.jpg
+|   |   |   +-- ...
+|   |   +-- test_imgs/
+|   |   |   +-- xxx.jpg
+|   |   |   +-- ...
++-- scripts/
++-- Qwen-VL-Series-Finetune/
+```
 
 ---
 
