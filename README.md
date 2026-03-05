@@ -129,6 +129,18 @@ WaymoQA
 +-- Qwen-VL-Series-Finetune/
 ```
 
+### 3. Evaluation and Training
+#### 3.1 Evaluation
+```bash
+bash scripts/service.sh
+
+
+```
+
+#### 3.2 Training
+```bash
+bash 
+```
 ---
 
 ## 📧 Contact
