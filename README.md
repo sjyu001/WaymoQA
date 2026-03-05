@@ -13,7 +13,7 @@
 - **Dataset.** We present WaymoQA, the first safety-critical and multi-view driving QA dataset with a training split, enabling research beyond evaluation only.
 - **Analysis and findings.** Through systematic analyses and experiments, we characterize MLLMs’ safety-critical understanding and show that training data markedly improve this capability.
 
-![collection](./assets/teaset.pdf)
+![MainFigure](./assets/teaser.pdf)
 
 ### Key Features
 - **Training-enabled dataset**: provides train split and objective test evaluation.
