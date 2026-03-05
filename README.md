@@ -41,7 +41,7 @@
 ## ⌛ ToDo
 
 - [x] Release question & anwswer data
-- [ ] Release traind and testing code
+- [x] Release traind and testing code
 
 ---
 # 🛠️ Getting Started
@@ -53,8 +53,6 @@
 
 **Using Third Party ([Fine-tuning Qwen-VL Series](https://github.com/2U1/Qwen-VL-Series-Finetune))**
 ```bash
-git clone https://github.com/tong-zeng/DVBench.git
-cd DVBench
 ```
 
 ### 1. Download Dataset
