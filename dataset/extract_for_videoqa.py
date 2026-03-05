@@ -5,6 +5,7 @@ import os
 import re
 import json
 import argparse
+from typing import Dict
 
 import cv2
 import numpy as np
@@ -21,7 +22,7 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 # ------------------------------------------------------------
 def parse_args():
     p = argparse.ArgumentParser(
-        description="Export 3x3 mosaics for VIDEO-QA tokens from Waymo E2E TFRecords."
+        description="Export 3x3 mosaics for VIDEO-QA tokens from Waymo E2E TFRecords (RAW tiles, NO resize/crop, with labels)."
     )
 
     p.add_argument("--dataset-root", type=str,
@@ -43,13 +44,6 @@ def parse_args():
                    help="Enable TF memory growth on the first visible GPU.")
     p.set_defaults(tf_mem_growth=True)
 
-    # image processing
-    p.add_argument("--undistort", action="store_true",
-                   help="Apply undistortion using camera intrinsics.")
-    p.add_argument("--no-undistort", dest="undistort", action="store_false",
-                   help="Disable undistortion.")
-    p.set_defaults(undistort=True)
-
     p.add_argument("--jpeg-quality", type=int, default=95, help="JPEG quality.")
 
     # performance / safety
@@ -64,6 +58,20 @@ def parse_args():
     p.add_argument("--pad-len", type=int, default=3,
                    help="Zero-padding length for frame index in filename (default: 3 -> 039).")
 
+    # label style
+    p.add_argument("--label-font-scale", type=float, default=0.7,
+                   help="Font scale for camera labels (default: 0.7).")
+    p.add_argument("--label-thickness", type=int, default=2,
+                   help="Line thickness for camera labels (default: 2).")
+    p.add_argument("--label-pad", type=int, default=6,
+                   help="Padding for label background box (default: 6).")
+
+    # layout
+    p.add_argument("--gap", type=int, default=8,
+                   help="Gap (pixels) between tiles in the mosaic (default: 8).")
+    p.add_argument("--tile-align", choices=["topleft", "center"], default="center",
+                   help="How to align each raw tile inside its cell (default: center).")
+
     # split filter in jsonl
     p.add_argument("--allow-splits", type=str, nargs="*",
                    default=["train", "validation", "val", "valid", "dev", "test"],
@@ -75,10 +83,6 @@ def parse_args():
 # ------------------------------------------------------------
 # Constants
 # ------------------------------------------------------------
-# Waymo CameraName enum (commonly)
-# 1: FRONT, 2: FRONT_LEFT, 3: FRONT_RIGHT,
-# 4: SIDE_LEFT, 5: SIDE_RIGHT,
-# 6: REAR_LEFT, 7: REAR, 8: REAR_RIGHT
 CAM_ID_TO_NAME = {
     1: "FRONT",
     2: "FRONT_LEFT",
@@ -90,10 +94,6 @@ CAM_ID_TO_NAME = {
     8: "REAR_RIGHT",
 }
 
-# Mosaic layout (3x3 with center blank):
-# [ FRONT_LEFT, FRONT, FRONT_RIGHT ]
-# [ SIDE_LEFT , blank, SIDE_RIGHT  ]
-# [ REAR_LEFT , REAR , REAR_RIGHT  ]
 MOSAIC_GRID = [
     [2, 1, 3],
     [4, 0, 5],  # 0 means blank
@@ -157,28 +157,6 @@ def parse_token_and_frame_idx(context_name: str):
     return token, None
 
 
-def build_calib_map(frame_msg):
-    return {cal.name: cal for cal in frame_msg.frame.context.camera_calibrations}
-
-
-def undistort_with_cal(img_bgr, cal):
-    intr = np.asarray(cal.intrinsic, dtype=np.float32)
-    if intr.size < 9:
-        return img_bgr
-
-    fu, fv, cu, cv = intr[:4]
-    k1, k2, p1, p2, k3 = intr[4:9]
-
-    K = np.array([[fu, 0, cu],
-                  [0, fv, cv],
-                  [0, 0, 1]], dtype=np.float32)
-    D = np.array([k1, k2, p1, p2, k3], dtype=np.float32)
-
-    h, w = img_bgr.shape[:2]
-    new_K, _ = cv2.getOptimalNewCameraMatrix(K, D, (w, h), alpha=0)
-    return cv2.undistort(img_bgr, K, D, None, new_K)
-
-
 def load_video_tokens_from_jsonl(jsonl_path, allow_splits, max_video_tokens=-1):
     allow_splits = set(allow_splits) | {None}
     video_tokens = []
@@ -218,51 +196,112 @@ def load_video_tokens_from_jsonl(jsonl_path, allow_splits, max_video_tokens=-1):
     return set(video_tokens), {"lines": line_cnt, "video_rows": video_rows, "video_tokens": len(video_tokens)}
 
 
-def normalize_tiles_to_same_size(imgs_bgr: dict):
+def cam_label(cid: int) -> str:
+    return CAM_ID_TO_NAME.get(cid, f"CAM_{cid}").replace("_", " ")
+
+
+def draw_label(tile_rgb: np.ndarray, text: str, font_scale: float, thickness: int, pad: int) -> np.ndarray:
+    img_bgr = cv2.cvtColor(tile_rgb, cv2.COLOR_RGB2BGR)
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    (tw, th), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+
+    x0, y0 = pad, pad
+    x1, y1 = x0 + tw + pad * 2, y0 + th + baseline + pad * 2
+
+    cv2.rectangle(img_bgr, (x0, y0), (x1, y1), (0, 0, 0), thickness=-1)
+    tx, ty = x0 + pad, y0 + pad + th
+    cv2.putText(img_bgr, text, (tx, ty), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+
+    return cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+
+
+def place_on_canvas(canvas: np.ndarray, tile: np.ndarray, x: int, y: int, align: str):
     """
-    imgs_bgr: {cam_id: image_bgr}
-    -> returns {cam_id: tile_rgb} where every tile has the same (H, W, 3)
-    Strategy:
-      1) pick target_h = min heights across available cams
-      2) resize each to target_h keeping aspect ratio
-      3) crop all to target_w = min widths after resize
-      4) convert to RGB
+    Place tile (RGB) onto canvas (RGB) at cell top-left (x,y), with optional alignment inside the cell.
+    Canvas area for the cell is inferred by canvas bounds; we just place tile at computed offset.
     """
-    heights = [im.shape[0] for im in imgs_bgr.values()]
-    target_h = min(heights)
+    ch, cw = canvas.shape[:2]
+    th, tw = tile.shape[:2]
 
-    resized = {}
-    widths = []
-    for cid, im in imgs_bgr.items():
-        h, w = im.shape[:2]
-        new_w = max(1, int(w * (target_h / h)))
-        im_rs = cv2.resize(im, (new_w, target_h))
-        resized[cid] = im_rs
-        widths.append(new_w)
-
-    target_w = min(widths)
-    tiles_rgb = {}
-    for cid, im_rs in resized.items():
-        im_crop = im_rs[:, :target_w]
-        tiles_rgb[cid] = cv2.cvtColor(im_crop, cv2.COLOR_BGR2RGB)
-
-    return tiles_rgb, target_h, target_w
+    # x,y are the top-left of the cell
+    # The cell size is not passed here; we will place relative to given x,y with offsets computed outside.
+    canvas[y:y+th, x:x+tw] = tile
 
 
-def build_3x3_mosaic(tiles_rgb: dict, tile_h: int, tile_w: int):
-    blank = np.zeros((tile_h, tile_w, 3), dtype=np.uint8)
+def build_raw_mosaic_with_padding(
+    tiles_rgb: Dict[int, np.ndarray],
+    font_scale: float,
+    thickness: int,
+    pad: int,
+    gap: int,
+    align: str,
+):
+    """
+    Build 3x3 mosaic WITHOUT resizing/cropping any tile.
+    - Each cell size = max(H), max(W) among tiles assigned to that row/col (excluding blank).
+    - Tiles are placed with padding (black) inside each cell.
+    - Gaps between cells are inserted.
+    """
+    blank_color = (0, 0, 0)
 
-    rows = []
-    for row in MOSAIC_GRID:
-        row_tiles = []
-        for cid in row:
+    # Apply labels first (still no resize/crop)
+    labeled = {}
+    for cid, img in tiles_rgb.items():
+        labeled[cid] = draw_label(img, cam_label(cid), font_scale, thickness, pad)
+
+    # Determine cell widths per column and heights per row
+    row_heights = [0, 0, 0]
+    col_widths = [0, 0, 0]
+
+    for r in range(3):
+        for c in range(3):
+            cid = MOSAIC_GRID[r][c]
             if cid == 0:
-                row_tiles.append(blank)
-            else:
-                row_tiles.append(tiles_rgb[cid])
-        rows.append(np.concatenate(row_tiles, axis=1))
+                continue
+            im = labeled[cid]
+            h, w = im.shape[:2]
+            row_heights[r] = max(row_heights[r], h)
+            col_widths[c] = max(col_widths[c], w)
 
-    mosaic = np.concatenate(rows, axis=0)  # RGB
+    # If some row/col is all blank (unlikely), set to 1 to avoid zero-sized canvas
+    row_heights = [h if h > 0 else 1 for h in row_heights]
+    col_widths = [w if w > 0 else 1 for w in col_widths]
+
+    H = sum(row_heights) + gap * 2
+    W = sum(col_widths) + gap * 2
+
+    mosaic = np.zeros((H, W, 3), dtype=np.uint8)
+    mosaic[:, :] = blank_color
+
+    # Place each tile into its cell with padding
+    y = 0
+    for r in range(3):
+        x = 0
+        cell_h = row_heights[r]
+        for c in range(3):
+            cell_w = col_widths[c]
+            cid = MOSAIC_GRID[r][c]
+
+            if cid != 0:
+                im = labeled[cid]
+                h, w = im.shape[:2]
+
+                if align == "center":
+                    oy = y + (cell_h - h) // 2
+                    ox = x + (cell_w - w) // 2
+                else:  # topleft
+                    oy, ox = y, x
+
+                mosaic[oy:oy+h, ox:ox+w] = im
+
+            x += cell_w
+            if c < 2:
+                x += gap
+        y += cell_h
+        if r < 2:
+            y += gap
+
     return mosaic
 
 
@@ -301,8 +340,9 @@ def main():
     print(f"[INFO] TFRecord source: {resolved_tfrecord_path}")
     print(f"[INFO] JSONL lines: {stats['lines']}, video rows: {stats['video_rows']}, unique video tokens: {stats['video_tokens']}")
     print(f"[INFO] Output dir: {args.output_dir}")
-    print(f"[INFO] Undistort: {args.undistort}")
     print(f"[INFO] Layout: FL/F/FR | SL/_/SR | RL/R/RR")
+    print(f"[INFO] RAW tiles: no resize/crop, padding allowed")
+    print(f"[INFO] Labels: enabled")
 
     total_frames = None
     if not args.skip_count:
@@ -310,7 +350,6 @@ def main():
         total_frames = sum(1 for _ in count_ds)
         print(f"[INFO] Total TFRecord frames: {total_frames}")
 
-    # per token frame limits
     exported_per_token = {t: 0 for t in video_tokens}
 
     ds = tf.data.TFRecordDataset(shards, compression_type="")
@@ -318,10 +357,8 @@ def main():
 
     saved = 0
     skipped_missing_cam = 0
-    scanned = 0
 
     for raw in pbar:
-        scanned += 1
         frame_msg = wod_e2ed_pb2.E2EDFrame()
         frame_msg.ParseFromString(raw.numpy())
 
@@ -332,11 +369,9 @@ def main():
         if token not in video_tokens:
             continue
 
-        # stride
         if args.stride > 1 and (fidx % args.stride != 0):
             continue
 
-        # cap per token
         if args.max_frames_per_token > 0 and exported_per_token[token] >= args.max_frames_per_token:
             continue
 
@@ -347,32 +382,30 @@ def main():
             pbar.set_postfix(saved=saved, miss_cam=skipped_missing_cam)
             continue
 
-        cal_map = build_calib_map(frame_msg)
-
-        # decode 8 cams
-        imgs_bgr = {}
+        # decode 8 cams (RAW)
+        tiles_rgb = {}
+        ok = True
         for cid in EXPECTED_CAM_IDS:
             cam = frame_cam_map[cid]
-            im = cv2.imdecode(np.frombuffer(cam.image, np.uint8), cv2.IMREAD_COLOR)
-            if im is None:
-                imgs_bgr = {}
+            im_bgr = cv2.imdecode(np.frombuffer(cam.image, np.uint8), cv2.IMREAD_COLOR)
+            if im_bgr is None:
+                ok = False
                 break
-            if args.undistort:
-                cal = cal_map.get(cid)
-                if cal is not None:
-                    try:
-                        im = undistort_with_cal(im, cal)
-                    except Exception:
-                        pass
-            imgs_bgr[cid] = im
+            tiles_rgb[cid] = cv2.cvtColor(im_bgr, cv2.COLOR_BGR2RGB)
 
-        if len(imgs_bgr) != 8:
+        if not ok or len(tiles_rgb) != 8:
             skipped_missing_cam += 1
             pbar.set_postfix(saved=saved, miss_cam=skipped_missing_cam)
             continue
 
-        tiles_rgb, tile_h, tile_w = normalize_tiles_to_same_size(imgs_bgr)
-        mosaic_rgb = build_3x3_mosaic(tiles_rgb, tile_h, tile_w)
+        mosaic_rgb = build_raw_mosaic_with_padding(
+            tiles_rgb=tiles_rgb,
+            font_scale=args.label_font_scale,
+            thickness=args.label_thickness,
+            pad=args.label_pad,
+            gap=args.gap,
+            align=args.tile_align,
+        )
 
         fidx_str = padn(fidx, args.pad_len)
         out_name = f"{token}_{fidx_str}.jpg"
