@@ -42,7 +42,7 @@
 
 - [x] Release question & anwswer data
 - [x] Realease data preprocessing code 
-- [ ] Release traind and testing code
+- [ ] Release training and testing code
 
 ---
 # 🛠️ Getting Started
