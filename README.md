@@ -41,7 +41,8 @@
 ## ⌛ ToDo
 
 - [x] Release question & anwswer data
-- [x] Release traind and testing code
+- [x] Realease data preprocessing code 
+- [ ] Release traind and testing code
 
 ---
 # 🛠️ Getting Started
