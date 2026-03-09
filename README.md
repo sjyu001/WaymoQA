@@ -79,14 +79,14 @@ To improve efficiency, we preprocess the dataset by exporting 8-camera images in
 # Example for Image QA
 python dataset/extract_for_imageqa.py \
   --split train \
-  --target-jsonl ./dataset/question/train.jsonl \
-  --output-dir ./dataset/train_imgs
+  --target-jsonl ./dataset/questions/train.jsonl \
+  --output-dir ./dataset/waymoe2e/train_imgs
 
 # Example for Video QA
 python dataset/export_videoqa_mosaics.py \
   --split train \
-  --target-jsonl ./dataset/question/train.jsonl \
-  --output-dir ./dataset/train_imgs \
+  --target-jsonl ./dataset/questions/train.jsonl \
+  --output-dir ./dataset/waymoe2e/train_imgs \
   --gap 12 \
   --tile-align center
 ```
@@ -97,9 +97,9 @@ For Qwen fine-tuning, we convert WaymoQA into a Qwen-compatible training format 
 
 ```bash
 python dataset/build_llava_conversations.py \
-  --inputs ./dataset/question/train.jsonl \
-  --out ./dataset/llava_train.json \
-  --video-mosaic-dir ./dataset/train_imgs \
+  --inputs ./dataset/questions/train.jsonl \
+  --out ./dataset/questions/llava_train.json \
+  --video-mosaic-dir ./dataset/waymoe2e/train_imgs \
   --video-stride 5 \ # Adjust based on your GPU memory
   --video-max-frames -1
 ```
