@@ -42,7 +42,7 @@
 
 - [x] Release question & anwswer data
 - [x] Realease data preprocessing code 
-- [ ] Release training and testing code
+- [x] Release training and testing code
 
 ---
 # 🛠️ Getting Started
@@ -133,16 +133,64 @@ WaymoQA
 
 ### 3. Evaluation and Training
 #### 3.1 Evaluation
+We provide an evaluation script that uses an OpenAI-compatible vLLM server (Chat Completions API).
+1. Start the vLLM service
 ```bash
 bash scripts/service.sh
-
-
 ```
+
+2. Run evaluation
+```bash
+python eval_waymoqa_vllm.py \
+  --api-base http://localhost:8001/v1 \
+  --model-name "Qwen/Qwen2.5-VL-7B-Instruct" \
+  --jsonl ./dataset/questions/test.jsonl \
+  --img-root ./dataset/waymoe2e/test_imgs \
+  --mosaic-root ./dataset/waymoe2e/test_imgs \
+  --video-stride 5 \ # Adjust based on your GPU memory
+  --video-max-frames -1 \
+  --num-workers 4
+```
+Arguments
+
+- ```--api-base```: vLLM OpenAI-compatible endpoint (default: http://localhost:8001/v1)
+- ```--model-name```: model identifier served by vLLM
+- ```--jsonl```: WaymoQA split file (train/validation/test)
+- ```--img-root```: directory containing exported multi-view images for ImageQA
+- ```--mosaic-root```: directory containing exported mosaic frames for VideoQA
+- ```--video-stride```: sample every N-th mosaic frame (increase stride if you hit OOM)
+- ```--video-max-frames```: max frames per sample (-1 = no limit; can be very large)
+- ```--num-workers```: parallel workers for faster throughput
+
+Outputs
+- ```Predictions CSV```: runs_vllm/pred_<model>_<split>.csv
+- ```Summary TXT```: runs_vllm/summary_<model>_<split>.txt
+
+> Tip: If you run into GPU memory issues during VideoQA, increase ```--video-stride``` (e.g., 8, 10) and/or set a smaller ```--video-max-frames``` (e.g., 60).
 
 #### 3.2 Training
+We support fine-tuning via the Qwen-VL-Series-Finetune pipeline (LoRA).
+The training format follows the LLaVA-style JSON (```llava_train.json```) with an ```image_folder``` that points to your pre-exported multi-view images.
+
+1. move into the finetuning repo
 ```bash
-bash 
+cd Qwen-VL-Series-Finetune
 ```
+
+2. Run LoRA fine-tuning
+```bash
+bash scripts/finetune_lora.sh
+```
+
+3. Set your dataset paths
+Edit the training script (or command args) to point to:
+- ```--data_path```: your training JSON (e.g., ```llava_train.json```)
+- ```--image_folder```: root directory containing your exported image files
+
+Notes
+- We recommend training on pre-extracted images/mosaics rather than reading TFRecords on-the-fly, to avoid repeated TFRecord scanning and image decoding overhead.
+- If you plan to use the validation split for training, we recommend using ```validation_open_ended.jsonl``` instead of ```validation_mcq.jsonl``` (MCQ is intended primarily for evaluation).
+
 ---
 
 ## 📧 Contact
