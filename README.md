@@ -43,6 +43,7 @@
 - [x] Release question & anwswer data
 - [x] Realease data preprocessing code 
 - [x] Release training and testing code
+- [ ] Release WaymoQA v1.1.
 
 ---
 # 🛠️ Getting Started
