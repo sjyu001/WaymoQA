@@ -52,7 +52,7 @@
 **Data Preprocessing Environment**
 ```
 conda env create -f environment.yml
-conda activate data
+conda activate waymo_export
 python -m pip install --no-cache-dir --no-deps waymo-open-dataset-tf-2-12-0==1.6.7
 ```
 
