@@ -555,6 +555,14 @@ def main():
         print("[WARN] No items to process")
         return
 
+    # Start from an empty CSV: the summary below reads the whole file, so rows left
+    # by an earlier run (e.g. a --max-examples smoke test) would be counted again.
+    # The previous file is kept as <name>.csv.bak.
+    if csv_path.exists():
+        backup = csv_path.with_name(csv_path.name + ".bak")
+        csv_path.replace(backup)
+        print(f"[INFO] Moved previous predictions to {backup}")
+
     written = 0
     with tqdm(total=total_lines, desc=f"Evaluating {args.model_name} ({args.split_name})", unit="sample") as pbar:
         with ThreadPoolExecutor(max_workers=int(args.num_workers)) as ex:
